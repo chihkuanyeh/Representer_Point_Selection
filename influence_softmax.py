@@ -64,6 +64,7 @@ def load_data(dataset):
 def to_np(x):
     return x.data.cpu().numpy()
 
+# implmentation for backtracking line search
 def backtracking_line_search(optimizer,model,grad,x,y,val,beta,N,args):
     t = 1.0
     W_O = to_np(model.W)
@@ -80,6 +81,14 @@ def backtracking_line_search(optimizer,model,grad,x,y,val,beta,N,args):
         else:
             break
 
+# calculation for softmax in torch, which avoids numerical overflow
+def softmax_torch(temp,N):
+    max_value,_ = torch.max(temp,1,keepdim = True)
+    temp = temp-max_value
+    D_exp = torch.exp(temp)
+    D_exp_sum = torch.sum(D_exp, dim=1).view(N,1)
+    return D_exp.div(D_exp_sum.expand_as(D_exp))
+
 def train(X, Y, model, args):
     x = Variable(torch.FloatTensor(X).cuda())
     y = Variable(torch.FloatTensor(Y).cuda())
@@ -94,51 +103,39 @@ def train(X, Y, model, args):
         loss = L2*args.lmbd + Phi/N
         phi_loss += to_np(Phi/N)
         loss.backward()
-        z = model.W.grad
         temp_W = model.W.data
-        backtracking_line_search(optimizer,model,model.W.grad,x,y,loss,0.5,N,args)
-        grad_loss = to_np(torch.mean(torch.abs(z)))
+        grad_loss = to_np(torch.mean(torch.abs(model.W.grad)))
+        # save the W with lowest loss
         if grad_loss < min_loss:
             if epoch ==0:
                 init_grad = grad_loss
             min_loss = grad_loss
             best_W = temp_W
             if min_loss < init_grad/200:
-                print('stopping criteria reached')
-                print(epoch)
-                sys.stdout.flush()
+                print('stopping criteria reached in epoch :{}'.format(epoch))
                 break
+        backtracking_line_search(optimizer,model,model.W.grad,x,y,loss,0.5,N,args)
         if epoch % 100 == 0:
             print('Epoch:{:4d}\tloss:{}\tphi_loss:{}\tgrad:{}'.format(epoch, to_np(loss), phi_loss, grad_loss))
-            #sys.stdout.flush()
+
+    # caluculate w based on the representer theorem's decomposition
     temp = torch.matmul(x,Variable(best_W))
-    max_value,_ = torch.max(temp,1,keepdim = True)
-    temp = temp-max_value
-    D_exp = torch.exp(temp)
-    D_exp_sum = torch.sum(D_exp, dim=1).view(N,1)
-    weight_matrix = D_exp.div(D_exp_sum.expand_as(D_exp))-y
+    softmax_value = softmax_torch(temp,N)
+    # derivative of softmax cross entropy
+    weight_matrix = softmax_value-y
     weight_matrix = torch.div(weight_matrix,(-2.0*args.lmbd*N))
     w = torch.matmul(torch.t(x),weight_matrix)
 
+    # calculate y_p, which is the prediction based on decomposition of w by representer theorem
     temp = torch.matmul(x,w.cuda())
-    max_value,_ = torch.max(temp,1,keepdim = True)
-    temp = temp-max_value
-    D_exp = torch.exp(temp)
-    D_exp_sum = torch.sum(D_exp, dim=1).view(N,1)
-    y_p = to_np(D_exp.div(D_exp_sum.expand_as(D_exp)))
+    softmax_value = softmax_torch(temp,N)
+    y_p = to_np(softmax_value)
 
-    temp = torch.matmul(x,Variable(best_W))
-    max_value,_ = torch.max(temp,1,keepdim = True)
-    temp = temp-max_value
-    D_exp = torch.exp(temp)
-    D_exp_sum = torch.sum(D_exp, dim=1).view(N,1)
-    y_pp = to_np(D_exp.div(D_exp_sum.expand_as(D_exp)))
+    print('L1 difference between ground truth prediction and prediction by representer theorem decomposition')
+    print(np.mean(np.abs(to_np(y)-y_p)))
 
-    #print('diff')
-    #print(np.mean(np.abs(to_np(y)-y_p)))
-    #print(np.mean(np.abs(to_np(y)-y_pp)))
     from scipy.stats.stats import pearsonr
-    print('pearson correlation between ground truth and prediction')
+    print('pearson correlation between ground truth  prediction and prediciton by representer theorem')
     y = to_np(y)
     corr,_ = (pearsonr(y.flatten(),(y_p).flatten()))
     print(corr)
