@@ -149,8 +149,8 @@ def main(args):
     end = time.time()
     print('computational time')
     print(end-start)
-    np.savez("weight_matrix_{}".format(args.dataset),weight_matrix = weight_matrix)
-    with open("weight_matrix_{}.pkl".format(args.dataset), "wb") as output_file:
+    np.savez("output/weight_matrix_{}".format(args.dataset),weight_matrix = weight_matrix)
+    with open("output/weight_matrix_{}.pkl".format(args.dataset), "wb") as output_file:
         pickle.dump([weight_matrix], output_file, protocol=pickle.HIGHEST_PROTOCOL)
 
 if __name__ == '__main__':
