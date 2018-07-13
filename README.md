@@ -15,10 +15,8 @@ This will create symbolic links to two directories `data` and `output`, which wi
 
 `data` directory will store data files such as training/test data, training/test features, etc. that is used to compute the influence function values / representer values.
 
-data used: Link to be added.
-
 `output` directory will store the computed influence function values /representer values.
 
-output used: Link to be added.
+You can download the contents of the `data` and `output` directory used [here](https://drive.google.com/drive/u/1/folders/1juHGib-4qo7kpNoVS2vq-jmD2rey-yhg)
 
 Both directory contains information used by the notebooks in `experiments` folder, which can be used to replicate the figures in the paper.
