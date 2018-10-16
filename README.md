@@ -8,7 +8,7 @@ Code release for [Representer Point Selection for Explaining Deep Neural Network
 Before running any code run the following script:
 
 ```
-mkdir data output; ln -s data influence-release-mod/scripts/data; ln -s output influence-release-mod/scripts/output
+mkdir data output; cd influence-release-mod/scripts; ln -s data ../../data; ln -s output ../../output
 ```
 
 This will create symbolic links to two directories `data` and `output`, which will be used by the influence function code inside the `influence-release-mod` folder.
