@@ -31,7 +31,6 @@ def get_try_check(model, X_train, Y_train, Y_train_flipped, X_test, Y_test, clas
         return check_num, check_loss, check_acc
     return try_check
 
-
 def test_mislabeled_detection_batch(
     model, 
     X_train, Y_train,

@@ -24,7 +24,7 @@ import influence.dataset as dataset
 from influence.dataset import DataSet
 from influence.binaryLogisticRegressionWithLBFGS import BinaryLogisticRegressionWithLBFGS
 from load_mnist import load_small_mnist, load_mnist
-from influence.experiments import get_try_check
+from influence.experiments import get_try_check, test_mislabeled_detection_batch
 
 import tensorflow as tf
 import pickle
@@ -105,7 +105,11 @@ Y_test = np.copy(tf_model.data_sets.test.labels)
 ## what percentage of data to corrupt
 perc = 0.4
 num_train_examples = Y_train.shape[0]
+
+# Random seed for each experiments
 num_random_seeds = 10
+
+# number of points to flip the label
 num_to_flip = int(num_train_examples * perc)
 checkpoint = 9
 
@@ -129,10 +133,9 @@ print('Orig loss: %.5f. Accuracy: %.3f' % (orig_results[0], orig_results[1]))
 num_train_examples = Y_train.shape[0] 
 
 exp_results = dict()
+# repeat experiments 10 times
 for exp_no in range(num_random_seeds):
     print('--Experiment %d'%exp_no)
-
-    # repeat experiments 10 times
 
     # select idx to corrupt
     np.random.seed(exp_no)
@@ -163,34 +166,37 @@ for exp_no in range(num_random_seeds):
     print('--Corrupted loss: %.5f. Accuracy: %.3f' % (
             flipped_results[exp_no, 1], flipped_results[exp_no, 2]))
 
+    # get the influence and loss values
+    train_losses = tf_model.sess.run(tf_model.indiv_loss_no_reg, feed_dict=tf_model.all_train_feed_dict)
+    train_loo_influences = tf_model.get_loo_influences()
+    #pickle.dump(train_losses, open('output/losses_%d_%d'%(exp_no, c), 'wb'))
+    #pickle.dump(train_loo_influences, open('output/inf_%d_%d'%(exp_no, c), 'wb'))
+
+    # NOTE we need representer values here
+    weight_fname = '../../output/weight_matrix_mnist_binary_%d_27.pkl'%exp_no
+    alpha = pickle.load(open(weight_fname, 'rb'))
+
+    #  just alphas for one class
+    ours_influences = np.sum(alpha[0] * alpha[1], axis=1)
+
+    # alpha times input
+    ours_influences_trains = ours_influences * np.sum(X_train * X_train, axis=1)
+
+    # average
+    ours_influences_avg = np.mean(alpha[0], axis=1)
+
     for c in range(checkpoint):
         # c is the porportion of the data to check 
         num_checks = int(num_train_examples / 20) * (c + 1)
         print('---- checking %d points (%f of training examples)'%(num_checks, (c+1) / 20.))
-        try_check = get_try_check(tf_model, X_train, Y_train, Y_train_flipped, X_test, Y_test, class_type=exp_type, retrain_no='%s-%s'%(exp_no, c))
-        
-        # get the influence and loss values
-        train_losses = tf_model.sess.run(tf_model.indiv_loss_no_reg, feed_dict=tf_model.all_train_feed_dict)
-        train_loo_influences = tf_model.get_loo_influences()
 
-        # NOTE we need representer values here
-        weight_fname = 'output/weight_matrix_mnist_binary_%d_27.pkl'%exp_no
-        alpha = pickle.load(open(weight_fname, 'rb'))
+        """
+        try_check = get_try_check(tf_model, X_train, Y_train, Y_train_flipped, X_test, Y_test, retrain_no='%s-%s'%(exp_no, c))
 
-        #  just alphas for one class
-        ours_influences = np.sum(alpha[0] * alpha[1], axis=1)
-        #ours_influences_trains = ours_influences * np.sum(X_train * X_train, axis=1)
-        #ours_influences_avg = np.mean(alpha[0], axis=1)
-
-
-        # Pick by LOO influence    
-        idx_to_check = np.argsort(train_loo_influences)[-num_checks:]
-        fixed_influence_loo_results[c, exp_no, :] = try_check(idx_to_check, 'Influence (LOO)')
-    
         # Pick by top loss to fix
         idx_to_check = np.argsort(np.abs(train_losses))[-num_checks:]    
         fixed_loss_results[c, exp_no, :] = try_check(idx_to_check, 'Loss')
-    
+
         # Randomly pick stuff to fix
         idx_to_check = np.random.choice(num_train_examples, size=num_checks, replace=False)    
         fixed_random_results[c, exp_no, :] = try_check(idx_to_check, 'Random')
@@ -199,15 +205,30 @@ for exp_no in range(num_random_seeds):
         idx_to_check = np.argsort(np.abs(ours_influences))[-num_checks:]
         fixed_ours_results[c, exp_no, :] = try_check(idx_to_check, 'Ours')
 
+        # Pick by LOO influence    
+        idx_to_check = np.argsort(train_loo_influences)[-num_checks:]
+        fixed_influence_loo_results[c, exp_no, :] = try_check(idx_to_check, 'Influence (LOO)')
+
         """
-        # Pick by our influence alhpa times input
-        idx_to_check = np.argsort(np.abs(ours_influences_trains))[-num_checks:]
-        fixed_ours_train_results[c, exp_no, :] = try_check(idx_to_check, 'Ours Abs with Train')
+        fixed_influence_loo_results[c, exp_no, :], \
+        fixed_loss_results[c, exp_no, :],\
+        fixed_random_results[c, exp_no, :],\
+        fixed_ours_results[c, exp_no, :] = test_mislabeled_detection_batch(
+                tf_model, 
+                X_train,
+                Y_train,
+                Y_train_flipped,
+                X_test, Y_test,
+                train_losses, train_loo_influences, ours_influences,
+                2, num_checks)
+
+        # Pick by our influence alpha times input
+        #idx_to_check = np.argsort(np.abs(ours_influences_trains))[-num_checks:]
+        #fixed_ours_train_results[c, exp_no, :] = try_check(idx_to_check, 'Ours Abs with Train')
 
         # Pick by our influencee alhpa times input
-        idx_to_check = np.argsort(np.abs(ours_influences_avg))[-num_checks:]
-        fixed_ours_avg_results[c, exp_no, :] = try_check(idx_to_check, 'Ours Abs with Avg')
-        """
+        #idx_to_check = np.argsort(np.abs(ours_influences_avg))[-num_checks:]
+        #fixed_ours_avg_results[c, exp_no, :] = try_check(idx_to_check, 'Ours Abs with Avg')
 
 print('Done. Saving...')
 file_name = 'mnist_%dvs%d_inputcheck_results.npz'%(pos_class, neg_class)
@@ -219,7 +240,7 @@ np.savez(
     fixed_influence_loo_results=fixed_influence_loo_results,
     fixed_loss_results=fixed_loss_results,
     fixed_random_results=fixed_random_results,
-    fixed_ours_results=fixed_ours_results
+    fixed_ours_results=fixed_ours_results,
     #fixed_ours_train_results=fixed_ours_train_results,
     #fixed_ours_avg_results=fixed_ours_avg_results,
 )
