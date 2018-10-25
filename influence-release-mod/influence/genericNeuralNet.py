@@ -1,7 +1,7 @@
 from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
-from __future__ import unicode_literals  
+from __future__ import unicode_literals
 
 import abc
 import sys
@@ -30,9 +30,9 @@ from influence.dataset import DataSet
 def variable(name, shape, initializer):
     dtype = tf.float32
     var = tf.get_variable(
-        name, 
-        shape, 
-        initializer=initializer, 
+        name,
+        shape,
+        initializer=initializer,
         dtype=dtype)
     return var
 
@@ -51,12 +51,12 @@ def variable_with_weight_decay(name, shape, stddev, wd):
     """
     dtype = tf.float32
     var = variable(
-        name, 
-        shape, 
+        name,
+        shape,
         initializer=tf.truncated_normal_initializer(
-            stddev=stddev, 
+            stddev=stddev,
             dtype=dtype))
- 
+
     if wd is not None:
       weight_decay = tf.multiply(tf.nn.l2_loss(var), wd, name='weight_loss')
       tf.add_to_collection('losses', weight_decay)
@@ -81,59 +81,59 @@ class GenericNeuralNet(object):
     def __init__(self, **kwargs):
         np.random.seed(0)
         tf.set_random_seed(0)
-        
+
         self.batch_size = kwargs.pop('batch_size')
         self.data_sets = kwargs.pop('data_sets')
         self.train_dir = kwargs.pop('train_dir', 'output')
         log_dir = kwargs.pop('log_dir', 'log')
         self.model_name = kwargs.pop('model_name')
         self.num_classes = kwargs.pop('num_classes')
-        self.initial_learning_rate = kwargs.pop('initial_learning_rate')        
+        self.initial_learning_rate = kwargs.pop('initial_learning_rate')
         self.decay_epochs = kwargs.pop('decay_epochs')
 
         if 'keep_probs' in kwargs: self.keep_probs = kwargs.pop('keep_probs')
         else: self.keep_probs = None
-        
-        if 'mini_batch' in kwargs: self.mini_batch = kwargs.pop('mini_batch')        
+
+        if 'mini_batch' in kwargs: self.mini_batch = kwargs.pop('mini_batch')
         else: self.mini_batch = True
-        
+
         if 'damping' in kwargs: self.damping = kwargs.pop('damping')
         else: self.damping = 0.0
-        
+
         if not os.path.exists(self.train_dir):
             os.makedirs(self.train_dir)
 
         # Initialize session
-        config = tf.ConfigProto()        
+        config = tf.ConfigProto()
         self.sess = tf.Session(config=config)
         K.set_session(self.sess)
-                
+
         # Setup input
         self.input_placeholder, self.labels_placeholder = self.placeholder_inputs()
         self.num_train_examples = self.data_sets.train.labels.shape[0]
         self.num_test_examples = self.data_sets.test.labels.shape[0]
-        
+
         # Setup inference and training
         if self.keep_probs is not None:
             self.keep_probs_placeholder = tf.placeholder(tf.float32, shape=(2))
             self.logits = self.inference(self.input_placeholder, self.keep_probs_placeholder)
-        elif hasattr(self, 'inference_needs_labels'):            
+        elif hasattr(self, 'inference_needs_labels'):
             self.logits = self.inference(self.input_placeholder, self.labels_placeholder)
         else:
             self.logits = self.inference(self.input_placeholder)
 
         self.total_loss, self.loss_no_reg, self.indiv_loss_no_reg = self.loss(
-            self.logits, 
+            self.logits,
             self.labels_placeholder)
 
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
         self.learning_rate = tf.Variable(self.initial_learning_rate, name='learning_rate', trainable=False)
         self.learning_rate_placeholder = tf.placeholder(tf.float32)
         self.update_learning_rate_op = tf.assign(self.learning_rate, self.learning_rate_placeholder)
-        
+
         self.train_op = self.get_train_op(self.total_loss, self.global_step, self.learning_rate)
         self.train_sgd_op = self.get_train_sgd_op(self.total_loss, self.global_step, self.learning_rate)
-        self.accuracy_op = self.get_accuracy_op(self.logits, self.labels_placeholder)        
+        self.accuracy_op = self.get_accuracy_op(self.logits, self.labels_placeholder)
         self.preds = self.predictions(self.logits)
 
         # Setup misc
@@ -148,31 +148,31 @@ class GenericNeuralNet(object):
 
         self.hessian_vector = hessian_vector_product(self.total_loss, self.params, self.v_placeholder)
 
-        self.grad_loss_wrt_input_op = tf.gradients(self.total_loss, self.input_placeholder)        
+        self.grad_loss_wrt_input_op = tf.gradients(self.total_loss, self.input_placeholder)
 
-        # Because tf.gradients auto accumulates, we probably don't need the add_n (or even reduce_sum)        
+        # Because tf.gradients auto accumulates, we probably don't need the add_n (or even reduce_sum)
         self.influence_op = tf.add_n(
             [tf.reduce_sum(tf.multiply(a, array_ops.stop_gradient(b))) for a, b in zip(self.grad_total_loss_op, self.v_placeholder)])
 
         self.grad_influence_wrt_input_op = tf.gradients(self.influence_op, self.input_placeholder)
-    
+
         self.checkpoint_file = os.path.join(self.train_dir, "%s-checkpoint" % self.model_name)
 
         self.all_train_feed_dict = self.fill_feed_dict_with_all_ex(self.data_sets.train)
         self.all_test_feed_dict = self.fill_feed_dict_with_all_ex(self.data_sets.test)
 
-        init = tf.global_variables_initializer()        
+        init = tf.global_variables_initializer()
         self.sess.run(init)
 
         self.vec_to_list = self.get_vec_to_list_fn()
         self.adversarial_loss, self.indiv_adversarial_loss = self.adversarial_loss(self.logits, self.labels_placeholder)
         if self.adversarial_loss is not None:
             self.grad_adversarial_loss_op = tf.gradients(self.adversarial_loss, self.params)
-        
+
 
     def get_vec_to_list_fn(self):
         params_val = self.sess.run(self.params)
-        self.num_params = len(np.concatenate(params_val))        
+        self.num_params = len(np.concatenate(params_val))
         print('Total number of parameters: %s' % self.num_params)
 
 
@@ -219,11 +219,11 @@ class GenericNeuralNet(object):
             return self.fill_feed_dict_with_all_ex(data_set)
         elif batch_size == 0:
             batch_size = self.batch_size
-    
-        input_feed, labels_feed = data_set.next_batch(batch_size)                              
+
+        input_feed, labels_feed = data_set.next_batch(batch_size)
         feed_dict = {
             self.input_placeholder: input_feed,
-            self.labels_placeholder: labels_feed,            
+            self.labels_placeholder: labels_feed,
         }
         return feed_dict
 
@@ -250,14 +250,14 @@ class GenericNeuralNet(object):
 
     def fill_feed_dict_manual(self, X, Y):
         X = np.array(X)
-        Y = np.array(Y) 
+        Y = np.array(Y)
         input_feed = X.reshape(len(Y), -1)
         labels_feed = Y.reshape(-1)
         feed_dict = {
             self.input_placeholder: input_feed,
             self.labels_placeholder: labels_feed,
         }
-        return feed_dict        
+        return feed_dict
 
 
     def minibatch_mean_eval(self, ops, data_set):
@@ -272,7 +272,7 @@ class GenericNeuralNet(object):
         for i in xrange(num_iter):
             feed_dict = self.fill_feed_dict_with_batch(data_set)
             ret_temp = self.sess.run(ops, feed_dict=feed_dict)
-            
+
             if len(ret)==0:
                 for b in ret_temp:
                     if isinstance(b, list):
@@ -285,7 +285,7 @@ class GenericNeuralNet(object):
                         ret[counter] = [a + (c / float(num_iter)) for (a, c) in zip(ret[counter], b)]
                     else:
                         ret[counter] += (b / float(num_iter))
-            
+
         return ret
 
 
@@ -296,18 +296,18 @@ class GenericNeuralNet(object):
             grad_loss_val, loss_no_reg_val, loss_val, train_acc_val = self.minibatch_mean_eval(
                 [self.grad_total_loss_op, self.loss_no_reg, self.total_loss, self.accuracy_op],
                 self.data_sets.train)
-            
+
             test_loss_val, test_acc_val = self.minibatch_mean_eval(
                 [self.loss_no_reg, self.accuracy_op],
                 self.data_sets.test)
 
         else:
             grad_loss_val, loss_no_reg_val, loss_val, train_acc_val = self.sess.run(
-                [self.grad_total_loss_op, self.loss_no_reg, self.total_loss, self.accuracy_op], 
+                [self.grad_total_loss_op, self.loss_no_reg, self.total_loss, self.accuracy_op],
                 feed_dict=self.all_train_feed_dict)
 
             test_loss_val, test_acc_val = self.sess.run(
-                [self.loss_no_reg, self.accuracy_op], 
+                [self.loss_no_reg, self.accuracy_op],
                 feed_dict=self.all_test_feed_dict)
 
         print('Train loss (w reg) on all data: %s' % loss_val)
@@ -322,8 +322,8 @@ class GenericNeuralNet(object):
 
 
 
-    def retrain(self, num_steps, feed_dict):        
-        for step in xrange(num_steps):   
+    def retrain(self, num_steps, feed_dict):
+        for step in xrange(num_steps):
             self.sess.run(self.train_op, feed_dict=feed_dict)
 
 
@@ -339,14 +339,14 @@ class GenericNeuralNet(object):
             multiplier = 0.1
         else:
             multiplier = 0.01
-        
+
         self.sess.run(
-            self.update_learning_rate_op, 
-            feed_dict={self.learning_rate_placeholder: multiplier * self.initial_learning_rate})        
+            self.update_learning_rate_op,
+            feed_dict={self.learning_rate_placeholder: multiplier * self.initial_learning_rate})
 
 
-    def train(self, num_steps, 
-              iter_to_switch_to_batch=20000, 
+    def train(self, num_steps,
+              iter_to_switch_to_batch=20000,
               iter_to_switch_to_sgd=40000,
               save_checkpoints=True, verbose=True):
         """
@@ -354,24 +354,24 @@ class GenericNeuralNet(object):
         """
         if verbose: print('Training for %s steps' % num_steps)
 
-        sess = self.sess            
+        sess = self.sess
 
         for step in xrange(num_steps):
             self.update_learning_rate(step)
 
             start_time = time.time()
 
-            if step < iter_to_switch_to_batch:                
+            if step < iter_to_switch_to_batch:
                 feed_dict = self.fill_feed_dict_with_batch(self.data_sets.train)
                 _, loss_val = sess.run([self.train_op, self.total_loss], feed_dict=feed_dict)
-                
+
             elif step < iter_to_switch_to_sgd:
-                feed_dict = self.all_train_feed_dict          
+                feed_dict = self.all_train_feed_dict
                 _, loss_val = sess.run([self.train_op, self.total_loss], feed_dict=feed_dict)
 
-            else: 
-                feed_dict = self.all_train_feed_dict          
-                _, loss_val = sess.run([self.train_sgd_op, self.total_loss], feed_dict=feed_dict)          
+            else:
+                feed_dict = self.all_train_feed_dict
+                _, loss_val = sess.run([self.train_sgd_op, self.total_loss], feed_dict=feed_dict)
 
             duration = time.time() - start_time
 
@@ -387,7 +387,7 @@ class GenericNeuralNet(object):
 
 
     def load_checkpoint(self, iter_to_load, do_checks=True):
-        checkpoint_to_load = "%s-%s" % (self.checkpoint_file, iter_to_load) 
+        checkpoint_to_load = "%s-%s" % (self.checkpoint_file, iter_to_load)
         self.saver.restore(self.sess, checkpoint_to_load)
 
         if do_checks:
@@ -422,7 +422,7 @@ class GenericNeuralNet(object):
         Returns:
           A scalar int32 tensor with the number of examples (out of batch_size)
           that were predicted correctly.
-        """        
+        """
         correct = tf.nn.in_top_k(logits, labels, 1)
         return tf.reduce_sum(tf.cast(correct, tf.int32)) / tf.shape(labels)[0]
 
@@ -446,21 +446,21 @@ class GenericNeuralNet(object):
         # Computes sum of log(1 - p(y = true|x))
         # No regularization (because this is meant to be computed on the test data)
 
-        labels = tf.one_hot(labels, depth=self.num_classes)        
+        labels = tf.one_hot(labels, depth=self.num_classes)
         wrong_labels = (labels - 1) * -1 # Flips 0s and 1s
         wrong_labels_bool = tf.reshape(tf.cast(wrong_labels, tf.bool), [-1, self.num_classes])
 
         wrong_logits = tf.reshape(tf.boolean_mask(logits, wrong_labels_bool), [-1, self.num_classes - 1])
-        
+
         indiv_adversarial_loss = tf.reduce_logsumexp(wrong_logits, reduction_indices=1) - tf.reduce_logsumexp(logits, reduction_indices=1)
         adversarial_loss = tf.reduce_mean(indiv_adversarial_loss)
-        
+
         return adversarial_loss, indiv_adversarial_loss #, indiv_wrong_prob
 
 
     def update_feed_dict_with_v_placeholder(self, feed_dict, vec):
         for pl_block, vec_block in zip(self.v_placeholder, vec):
-            feed_dict[pl_block] = vec_block        
+            feed_dict[pl_block] = vec_block
         return feed_dict
 
 
@@ -472,32 +472,32 @@ class GenericNeuralNet(object):
             return self.get_inverse_hvp_cg(v, verbose)
 
 
-    def get_inverse_hvp_lissa(self, v, 
+    def get_inverse_hvp_lissa(self, v,
                               batch_size=None,
                               scale=10, damping=0.0, num_samples=1, recursion_depth=10000):
         """
         This uses mini-batching; uncomment code for the single sample case.
-        """    
+        """
         inverse_hvp = None
         print_iter = recursion_depth / 10
 
         for i in range(num_samples):
             # samples = np.random.choice(self.num_train_examples, size=recursion_depth)
-           
+
             cur_estimate = v
 
             for j in range(recursion_depth):
-             
+
                 # feed_dict = fill_feed_dict_with_one_ex(
-                #   data_set, 
-                #   images_placeholder, 
-                #   labels_placeholder, 
-                #   samples[j])   
+                #   data_set,
+                #   images_placeholder,
+                #   labels_placeholder,
+                #   samples[j])
                 feed_dict = self.fill_feed_dict_with_batch(self.data_sets.train, batch_size=batch_size)
 
                 feed_dict = self.update_feed_dict_with_v_placeholder(feed_dict, cur_estimate)
                 hessian_vector_val = self.sess.run(self.hessian_vector, feed_dict=feed_dict)
-                cur_estimate = [a + (1-damping) * b - c/scale for (a,b,c) in zip(v, cur_estimate, hessian_vector_val)]    
+                cur_estimate = [a + (1-damping) * b - c/scale for (a,b,c) in zip(v, cur_estimate, hessian_vector_val)]
 
                 # Update: v + (I - Hessian_at_x) * cur_estimate
                 if (j % print_iter == 0) or (j == recursion_depth - 1):
@@ -507,12 +507,12 @@ class GenericNeuralNet(object):
             if inverse_hvp is None:
                 inverse_hvp = [b/scale for b in cur_estimate]
             else:
-                inverse_hvp = [a + b/scale for (a, b) in zip(inverse_hvp, cur_estimate)]  
+                inverse_hvp = [a + b/scale for (a, b) in zip(inverse_hvp, cur_estimate)]
 
         inverse_hvp = [a/num_samples for a in inverse_hvp]
         return inverse_hvp
-  
-    
+
+
     def minibatch_hessian_vector_val(self, v):
 
         num_examples = self.num_train_examples
@@ -535,7 +535,7 @@ class GenericNeuralNet(object):
                 hessian_vector_val = [b / float(num_iter) for b in hessian_vector_val_temp]
             else:
                 hessian_vector_val = [a + (b / float(num_iter)) for (a,b) in zip(hessian_vector_val, hessian_vector_val_temp)]
-            
+
         hessian_vector_val = [a + self.damping * b for (a,b) in zip(hessian_vector_val, v)]
 
         return hessian_vector_val
@@ -553,7 +553,7 @@ class GenericNeuralNet(object):
     def get_fmin_grad_fn(self, v):
         def get_fmin_grad(x):
             hessian_vector_val = self.minibatch_hessian_vector_val(self.vec_to_list(x))
-            
+
             return np.concatenate(hessian_vector_val) - np.concatenate(v)
         return get_fmin_grad
 
@@ -566,7 +566,7 @@ class GenericNeuralNet(object):
 
     def get_cg_callback(self, v, verbose):
         fmin_loss_fn = self.get_fmin_loss_fn(v)
-        
+
         def fmin_loss_split(x):
             hessian_vector_val = self.minibatch_hessian_vector_val(self.vec_to_list(x))
 
@@ -577,7 +577,7 @@ class GenericNeuralNet(object):
             v = self.vec_to_list(x)
             idx_to_remove = 5
 
-            single_train_feed_dict = self.fill_feed_dict_with_one_ex(self.data_sets.train, idx_to_remove)      
+            single_train_feed_dict = self.fill_feed_dict_with_one_ex(self.data_sets.train, idx_to_remove)
             train_grad_loss_val = self.sess.run(self.grad_total_loss_op, feed_dict=single_train_feed_dict)
             predicted_loss_diff = np.dot(np.concatenate(v), np.concatenate(train_grad_loss_val)) / self.num_train_examples
 
@@ -602,7 +602,7 @@ class GenericNeuralNet(object):
             fhess_p=self.get_fmin_hvp,
             callback=cg_callback,
             avextol=1e-8,
-            maxiter=100) 
+            maxiter=100)
 
         return self.vec_to_list(fmin_results)
 
@@ -637,11 +637,11 @@ class GenericNeuralNet(object):
 
         else:
             test_grad_loss_no_reg_val = self.minibatch_mean_eval([op], self.data_sets.test)[0]
-        
+
         return test_grad_loss_no_reg_val
 
 
-    def get_influence_on_test_loss(self, test_indices, train_idx, 
+    def get_influence_on_test_loss(self, test_indices, train_idx,
         approx_type='cg', approx_params=None, force_refresh=True, test_description=None,
         loss_type='normal_loss',
         X=None, Y=None):
@@ -649,7 +649,7 @@ class GenericNeuralNet(object):
         # Need to make sure test_idx stays consistent between models
         # because mini-batching permutes dataset order
 
-        if train_idx is None: 
+        if train_idx is None:
             if (X is None) or (Y is None): raise ValueError, 'X and Y must be specified if using phantom points.'
             if X.shape[0] != len(Y): raise ValueError, 'X and Y must have the same length.'
         else:
@@ -684,22 +684,22 @@ class GenericNeuralNet(object):
         start_time = time.time()
         if train_idx is None:
             num_to_remove = len(Y)
-            predicted_loss_diffs = np.zeros([num_to_remove])            
-            for counter in np.arange(num_to_remove):
-                single_train_feed_dict = self.fill_feed_dict_manual(X[counter, :], [Y[counter]])      
-                train_grad_loss_val = self.sess.run(self.grad_total_loss_op, feed_dict=single_train_feed_dict)
-                predicted_loss_diffs[counter] = np.dot(np.concatenate(inverse_hvp), np.concatenate(train_grad_loss_val)) / self.num_train_examples            
-
-        else:            
-            num_to_remove = len(train_idx)
             predicted_loss_diffs = np.zeros([num_to_remove])
-            for counter, idx_to_remove in enumerate(train_idx):            
-                if counter % 1000== 0:
-                    print('Processed {} / {}'.format(counter, num_to_remove))
-                single_train_feed_dict = self.fill_feed_dict_with_one_ex(self.data_sets.train, idx_to_remove)      
+            for counter in np.arange(num_to_remove):
+                single_train_feed_dict = self.fill_feed_dict_manual(X[counter, :], [Y[counter]])
                 train_grad_loss_val = self.sess.run(self.grad_total_loss_op, feed_dict=single_train_feed_dict)
                 predicted_loss_diffs[counter] = np.dot(np.concatenate(inverse_hvp), np.concatenate(train_grad_loss_val)) / self.num_train_examples
-                
+
+        else:
+            num_to_remove = len(train_idx)
+            predicted_loss_diffs = np.zeros([num_to_remove])
+            for counter, idx_to_remove in enumerate(train_idx):
+                if counter % 1000== 0:
+                    print('Processed {} / {}'.format(counter, num_to_remove))
+                single_train_feed_dict = self.fill_feed_dict_with_one_ex(self.data_sets.train, idx_to_remove)
+                train_grad_loss_val = self.sess.run(self.grad_total_loss_op, feed_dict=single_train_feed_dict)
+                predicted_loss_diffs[counter] = np.dot(np.concatenate(inverse_hvp), np.concatenate(train_grad_loss_val)) / self.num_train_examples
+
         duration = time.time() - start_time
         print('Multiplying by %s train examples took %s sec' % (num_to_remove, duration))
 
@@ -709,7 +709,7 @@ class GenericNeuralNet(object):
 
     def find_eigvals_of_hessian(self, num_iter=100, num_prints=10):
 
-        # Setup        
+        # Setup
         print_iterations = num_iter / num_prints
         feed_dict = self.fill_feed_dict_with_one_ex(self.data_sets.train, 0)
 
@@ -718,7 +718,7 @@ class GenericNeuralNet(object):
         initial_v = []
 
         for a in grad_loss_val:
-            initial_v.append(np.random.random(a.shape))        
+            initial_v.append(np.random.random(a.shape))
         initial_v, _ = normalize_vector(initial_v)
 
         # Do power iteration to find largest eigenvalue
@@ -730,8 +730,8 @@ class GenericNeuralNet(object):
         # Do power iteration to find smallest eigenvalue
         print('Starting power iteration to find smallest eigenvalue...')
         cur_estimate = initial_v
-        
-        for i in range(num_iter):          
+
+        for i in range(num_iter):
             cur_estimate, norm_val = normalize_vector(cur_estimate)
             hessian_vector_val = self.minibatch_hessian_vector_val(cur_estimate)
             new_cur_estimate = [a - largest_eig * b for (a,b) in zip(hessian_vector_val, cur_estimate)]
@@ -750,41 +750,41 @@ class GenericNeuralNet(object):
         return largest_eig, smallest_eig
 
 
-    def get_grad_of_influence_wrt_input(self, train_indices, test_indices, 
+    def get_grad_of_influence_wrt_input(self, train_indices, test_indices,
         approx_type='cg', approx_params=None, force_refresh=True, verbose=True, test_description=None,
         loss_type='normal_loss'):
         """
         If the loss goes up when you remove a point, then it was a helpful point.
         So positive influence = helpful.
-        If we move in the direction of the gradient, we make the influence even more positive, 
+        If we move in the direction of the gradient, we make the influence even more positive,
         so even more helpful.
         Thus if we want to make the test point more wrong, we have to move in the opposite direction.
         """
 
         # Calculate v_placeholder (gradient of loss at test point)
-        test_grad_loss_no_reg_val = self.get_test_grad_loss_no_reg_val(test_indices, loss_type=loss_type)            
+        test_grad_loss_no_reg_val = self.get_test_grad_loss_no_reg_val(test_indices, loss_type=loss_type)
 
         if verbose: print('Norm of test gradient: %s' % np.linalg.norm(np.concatenate(test_grad_loss_no_reg_val)))
-        
+
         start_time = time.time()
 
         if test_description is None:
             test_description = test_indices
 
         approx_filename = os.path.join(self.train_dir, '%s-%s-%s-test-%s.npz' % (self.model_name, approx_type, loss_type, test_description))
-        
+
         if os.path.exists(approx_filename) and force_refresh == False:
             inverse_hvp = list(np.load(approx_filename)['inverse_hvp'])
             if verbose: print('Loaded inverse HVP from %s' % approx_filename)
-        else:            
+        else:
             inverse_hvp = self.get_inverse_hvp(
                 test_grad_loss_no_reg_val,
                 approx_type,
                 approx_params,
                 verbose=verbose)
             np.savez(approx_filename, inverse_hvp=inverse_hvp)
-            if verbose: print('Saved inverse HVP to %s' % approx_filename)            
-        
+            if verbose: print('Saved inverse HVP to %s' % approx_filename)
+
         duration = time.time() - start_time
         if verbose: print('Inverse HVP took %s sec' % duration)
 
@@ -793,14 +793,14 @@ class GenericNeuralNet(object):
         for counter, train_idx in enumerate(train_indices):
             # Put in the train example in the feed dict
             grad_influence_feed_dict = self.fill_feed_dict_with_one_ex(
-                self.data_sets.train,  
+                self.data_sets.train,
                 train_idx)
 
             self.update_feed_dict_with_v_placeholder(grad_influence_feed_dict, inverse_hvp)
 
             # Run the grad op with the feed dict
-            current_grad_influence_wrt_input_val = self.sess.run(self.grad_influence_wrt_input_op, feed_dict=grad_influence_feed_dict)[0][0, :]            
-            
+            current_grad_influence_wrt_input_val = self.sess.run(self.grad_influence_wrt_input_op, feed_dict=grad_influence_feed_dict)[0][0, :]
+
             if grad_influence_wrt_input_val is None:
                 grad_influence_wrt_input_val = np.zeros([len(train_indices), len(current_grad_influence_wrt_input_val)])
 
@@ -813,22 +813,22 @@ class GenericNeuralNet(object):
         assert np.all(new_train_x.shape == self.data_sets.train.x.shape)
         new_train = DataSet(new_train_x, np.copy(self.data_sets.train.labels))
         self.data_sets = base.Datasets(train=new_train, validation=self.data_sets.validation, test=self.data_sets.test)
-        self.all_train_feed_dict = self.fill_feed_dict_with_all_ex(self.data_sets.train)                
+        self.all_train_feed_dict = self.fill_feed_dict_with_all_ex(self.data_sets.train)
         self.reset_datasets()
 
 
     def update_train_x_y(self, new_train_x, new_train_y):
         new_train = DataSet(new_train_x, new_train_y)
         self.data_sets = base.Datasets(train=new_train, validation=self.data_sets.validation, test=self.data_sets.test)
-        self.all_train_feed_dict = self.fill_feed_dict_with_all_ex(self.data_sets.train)                
+        self.all_train_feed_dict = self.fill_feed_dict_with_all_ex(self.data_sets.train)
         self.num_train_examples = len(new_train_y)
-        self.reset_datasets()        
+        self.reset_datasets()
 
 
     def update_test_x_y(self, new_test_x, new_test_y):
         new_test = DataSet(new_test_x, new_test_y)
         self.data_sets = base.Datasets(train=self.data_sets.train, validation=self.data_sets.validation, test=new_test)
-        self.all_test_feed_dict = self.fill_feed_dict_with_all_ex(self.data_sets.test)                
+        self.all_test_feed_dict = self.fill_feed_dict_with_all_ex(self.data_sets.test)
         self.num_test_examples = len(new_test_y)
-        self.reset_datasets()        
+        self.reset_datasets()
 
