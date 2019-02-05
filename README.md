@@ -19,4 +19,12 @@ This will create symbolic links to two directories `data` and `output`, which wi
 
 You can download the contents of the `data` and `output` directory used [here](https://drive.google.com/drive/u/1/folders/1juHGib-4qo7kpNoVS2vq-jmD2rey-yhg)
 
+To calculate the representer values as in the paper, run
+```
+python compute_representer_vals.py --dataset Cifar
+python compute_representer_vals.py --dataset AwA
+
+```
+
+
 Both directory contains information used by the notebooks in `experiments` folder, which can be used to replicate the figures in the paper.

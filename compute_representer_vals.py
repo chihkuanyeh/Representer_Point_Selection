@@ -52,8 +52,8 @@ def load_data(dataset):
     elif dataset == "AwA":
         with open("data/weight_bias.pickle", "rb") as input_file:
             [weight,bias] = pickle.load(input_file,encoding = 'latin1')
-        train_feature = np.squeeze(np.load('data/train_feature.npy'))
-        train_output = np.squeeze(np.load('data/train_output.npy'))
+        train_feature = np.squeeze(np.load('data/train_feature_awa.npy'))
+        train_output = np.squeeze(np.load('data/train_output_awa.npy'))
         weight = np.transpose(np.concatenate([weight,np.expand_dims(bias,1)],axis = 1))
         train_feature = np.concatenate([train_feature,np.ones((train_feature.shape[0],1))],axis = 1)
         train_output = softmax_np(train_output)
