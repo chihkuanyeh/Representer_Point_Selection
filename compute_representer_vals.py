@@ -43,6 +43,9 @@ def softmax_np(x):
 def load_data(dataset):
     if dataset == "Cifar":
         with open("data/weight_323436.pkl", "rb") as input_file:
+            # for python 2 run
+            # [W_32,W_34,W_36,intermediate_output_32,intermediate_output_34,intermediate_output_36] = pickle.load(input_file)
+            # for python 3
             [W_32,W_34,W_36,intermediate_output_32,intermediate_output_34,intermediate_output_36] = pickle.load(input_file, encoding = 'latin1')
         print('done loading')
         model = softmax(W_36)
@@ -51,7 +54,10 @@ def load_data(dataset):
         return (np.concatenate([intermediate_output_34,np.ones((intermediate_output_34.shape[0],1))],axis = 1), intermediate_output_36, model)
     elif dataset == "AwA":
         with open("data/weight_bias.pickle", "rb") as input_file:
-            [weight,bias] = pickle.load(input_file,encoding = 'latin1')
+            # for python 2 run
+            # [weight,bias] = pickle.load(input_file)
+            # for python 3
+            [weight,bias] = pickle.load(input_file, encoding = 'latin1')
         train_feature = np.squeeze(np.load('data/train_feature_awa.npy'))
         train_output = np.squeeze(np.load('data/train_output_awa.npy'))
         weight = np.transpose(np.concatenate([weight,np.expand_dims(bias,1)],axis = 1))
