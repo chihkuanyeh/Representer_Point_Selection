@@ -47,6 +47,8 @@ def load_data(dataset):
             # [W_32,W_34,W_36,intermediate_output_32,intermediate_output_34,intermediate_output_36] = pickle.load(input_file)
             # for python 3
             [W_32,W_34,W_36,intermediate_output_32,intermediate_output_34,intermediate_output_36] = pickle.load(input_file, encoding = 'latin1')
+            print((softmax_np(np.matmul(np.concatenate([intermediate_output_34,np.ones((intermediate_output_34.shape[0],1))],axis = 1),W_36))-intermediate_output_36)[:5,:])
+            print(intermediate_output_36[:5,:])
         print('done loading')
         model = softmax(W_36)
         model.cuda()
@@ -72,7 +74,8 @@ def to_np(x):
 
 # implmentation for backtracking line search
 def backtracking_line_search(optimizer,model,grad,x,y,val,beta,N,args):
-    t = 1.0
+    t = 10.0
+    beta = 0.5
     W_O = to_np(model.W)
     grad_np = to_np(grad)
     while(True):
@@ -80,7 +83,8 @@ def backtracking_line_search(optimizer,model,grad,x,y,val,beta,N,args):
         val_n = 0.0
         (Phi,L2) = model(x,y)
         val_n = Phi/N + L2*args.lmbd
-        if t < 0.000001 :
+        if t < 0.0000000001 :
+            print("t too small")
             break
         if to_np(val_n - val + t*torch.norm(grad)**2/2)>=0:
             t = beta *t
@@ -130,12 +134,15 @@ def train(X, Y, model, args):
     # derivative of softmax cross entropy
     weight_matrix = softmax_value-y
     weight_matrix = torch.div(weight_matrix,(-2.0*args.lmbd*N))
+    print(weight_matrix[:5,:5].cpu())
     w = torch.matmul(torch.t(x),weight_matrix)
-
+    print(w[:5,:5].cpu())
     # calculate y_p, which is the prediction based on decomposition of w by representer theorem
     temp = torch.matmul(x,w.cuda())
+    print(temp[:5,:5].cpu())
     softmax_value = softmax_torch(temp,N)
     y_p = to_np(softmax_value)
+    print(y_p[:5,:])
 
     print('L1 difference between ground truth prediction and prediction by representer theorem decomposition')
     print(np.mean(np.abs(to_np(y)-y_p)))
@@ -157,12 +164,12 @@ def main(args):
     print(end-start)
     np.savez("output/weight_matrix_{}".format(args.dataset),weight_matrix = weight_matrix)
     with open("output/weight_matrix_{}.pkl".format(args.dataset), "wb") as output_file:
-        pickle.dump([weight_matrix], output_file, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump([weight_matrix,y], output_file, protocol=pickle.HIGHEST_PROTOCOL)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--lmbd', type=float, default=0.003)
-    parser.add_argument('--epoch', type=int, default=2000)
+    parser.add_argument('--epoch', type=int, default=3000)
     parser.add_argument('--dataset', type=str, default="Cifar")
     args = parser.parse_args()
     print(args)
