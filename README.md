@@ -1,6 +1,6 @@
 # Representer Point Selection for Explaining Deep Neural Networks
 
-Code release for [Representer Point Selection for Explaining Deep Neural Networks](link.to.follow)
+Code release for [Representer Point Selection for Explaining Deep Neural Networks](https://arxiv.org/abs/1811.09720)
 
 
 ## Instructions
@@ -17,7 +17,7 @@ This will create symbolic links to two directories `data` and `output`, which wi
 
 `output` directory will store the computed influence function values /representer values.
 
-You can download the contents of the `data` and `output` directory used [here](https://drive.google.com/drive/u/1/folders/1juHGib-4qo7kpNoVS2vq-jmD2rey-yhg)
+You can download the contents of the `data` and `output` directory used [here](https://drive.google.com/drive/folders/1sB8MjeFmh_8-1mpkaBJdO89h6e1ELLnu?usp=sharing)
 
 Both directory contains information used by the notebooks in `experiments` folder, which can be used to replicate the figures in the paper.
 
