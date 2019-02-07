@@ -1,6 +1,6 @@
 # Representer Point Selection for Explaining Deep Neural Networks
 
-Code release for [Representer Point Selection for Explaining Deep Neural Networks](https://arxiv.org/abs/1811.09720)
+Code release for [Representer Point Selection for Explaining Deep Neural Networks](https://arxiv.org/abs/1811.09720) at NeurIPS 2018
 
 
 ## Instructions
